@@ -1,22 +1,21 @@
 package com.bogota.gdg.reactivexnetworkarchitecture.network
 
-import android.util.Log
 
-
+import android.content.ContentValues.TAG
 import com.bogota.gdg.reactivexnetworkarchitecture.json.Team
-import org.json.JSONArray
-import org.json.JSONObject
-
-import java.io.BufferedReader
-import java.io.IOException
-import java.io.InputStreamReader
-import java.net.URL
-import java.util.ArrayList
-
-import retrofit2.Call
-import retrofit2.Response
+import io.reactivex.Observable
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.schedulers.Schedulers
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.io.IOException
+import android.os.SystemClock
+import android.util.Log
+import io.reactivex.ObservableSource
+import java.util.concurrent.Callable
+import io.reactivex.observers.DisposableObserver
+
 
 /**
  * @author Santiago Carrillo
@@ -25,13 +24,7 @@ class Network {
 
     private val service: TeamsService
 
-    val teams: List<Team>
-        @Throws(IOException::class)
-        get() {
-            val call = service.listTeams()
-            val response = call.execute()
-            return response.body()
-        }
+    private val disposables = CompositeDisposable()
 
     init {
         val retrofit = Retrofit.Builder().baseUrl(
@@ -39,34 +32,24 @@ class Network {
         service = retrofit.create(TeamsService::class.java)
     }
 
-    fun getTeamsFromUrl(serverUrl: String): List<Team> {
-        val teams = ArrayList<Team>()
-        try {
-            val url = URL(serverUrl)
-            val inputStreamReader = InputStreamReader(url.openStream())
-            val bufferedReader = BufferedReader(inputStreamReader)
+    fun getTeams(disposableObserver: DisposableObserver<List<Team>>) {
+        disposables.add(teamsObservable()
 
-            var line: String
-            val stringBuilder = StringBuilder()
-            line = bufferedReader.readLine()
-            while (line != null) {
-                stringBuilder.append(line)
-                line = bufferedReader.readLine()
-            }
+                // Run on a background thread
+                .subscribeOn(Schedulers.io())
 
-            inputStreamReader.close()
-            val json = stringBuilder.toString()
-            val jsonArray = JSONArray(json)
-            for (i in 0 until jsonArray.length()) {
-                val jsonObject = jsonArray.getJSONObject(i)
-                teams.add(Team(jsonObject))
-            }
-
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Log.e(Network::class.java.simpleName, "Error loading network data", e.cause)
-        }
-
-        return teams
+                // Be notified on the main thread
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribeWith(disposableObserver))
     }
+
+
+    private fun teamsObservable(): Observable<List<Team>> {
+        return Observable.defer {
+            val call = service.listTeams()
+            val response = call.execute()
+            Observable.just(response.body())
+        }
+    }
+
 }
