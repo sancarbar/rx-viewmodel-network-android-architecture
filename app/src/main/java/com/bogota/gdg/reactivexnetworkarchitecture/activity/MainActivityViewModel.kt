@@ -31,7 +31,7 @@ class MainActivityViewModel : ViewModel() {
                 }
 
                 override fun onError(e: Throwable) {
-                    Log.e(ContentValues.TAG, "onError()", e)
+                    disposableObserver.onError(e)
                 }
 
                 override fun onNext(teamList: List<Team>) {
